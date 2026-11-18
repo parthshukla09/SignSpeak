@@ -1,5 +1,14 @@
 tensorflow==2.17.1
+# The model was saved with Keras 3.13.2 and needs keras>=3.13; 3.15.1 is verified to load it with TF 2.17.1
+keras==3.15.1
 mediapipe==0.10.21
 numpy==1.26.4
 opencv-python==4.11.0.86
 protobuf==4.25.9
+# Text-to-speech (Windows uses the built-in SAPI voice through pywin32; other platforms use pyttsx3)
+pyttsx3==2.99
+pywin32==312; sys_platform == "win32"
+# Web app (python app.py)
+fastapi==0.164.0
+uvicorn==0.54.0
+websockets==17.4

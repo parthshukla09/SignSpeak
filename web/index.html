@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="SignSpeak: real-time Indian Sign Language fingerspelling to text and speech.">
+  <title>SignSpeak</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2334d399'/%3E%3Cstop offset='1' stop-color='%233b82f6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M9 10.5a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-4.5L11 23v-3.6a3 3 0 0 1-2-2.9z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M13 12.5h6M13 15.5h4' stroke='%23fff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+  <script>
+    /* Apply a saved manual theme before first paint (avoids a flash of the wrong theme). */
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('signspeak.settings') || '{}');
+        if (s && (s.theme === 'dark' || s.theme === 'light')) document.documentElement.setAttribute('data-theme', s.theme);
+      } catch (e) { /* storage unavailable: follow the system theme */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <!-- Icon sprite (inline SVG, no icon fonts) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></symbol>
+    <symbol id="i-speaker-off" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-backspace" viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><path d="m18 9-6 6"/><path d="m12 9 6 6"/></symbol>
+    <symbol id="i-space" viewBox="0 0 24 24"><path d="M3 9v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9"/></symbol>
+    <symbol id="i-eraser" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-6-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol>
+    <symbol id="i-camera-off" viewBox="0 0 24 24"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><path d="m1 1 22 22"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+    <symbol id="i-wand" viewBox="0 0 24 24"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72z"/><path d="m14 7 3 3"/><path d="M5 6v4M19 14v4M10 2v2M7 8H3M21 16h-4M11 3H9"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+    <symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M12 20h.01"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 4.17-2.65"/><path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/><path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/><path d="M5 13a10 10 0 0 1 5.24-2.76"/><path d="m2 2 20 20"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M9 20h6"/><path d="M12 5v15"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11 3l1.8 4.7L17.5 9.5l-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z"/><path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+    <symbol id="i-record" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></symbol>
+  </svg>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="app-header">
+    <div class="brand">
+      <svg class="brand__logo" viewBox="0 0 32 32" aria-hidden="true">
+        <defs>
+          <linearGradient id="logo-gradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#34d399"/>
+            <stop offset="1" stop-color="#3b82f6"/>
+          </linearGradient>
+        </defs>
+        <rect width="32" height="32" rx="9" fill="url(#logo-gradient)"/>
+        <path d="M9 10.5a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-4.5L11 23v-3.6a3 3 0 0 1-2-2.9z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M13 12.5h6M13 15.5h4" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="brand__name">SignSpeak</span>
+      <span class="brand__tag">ISL fingerspelling</span>
+    </div>
+
+    <nav class="tabs-nav" aria-label="Sections">
+      <div class="tabs" role="tablist" aria-label="Sections">
+        <button type="button" class="tab" role="tab" id="tab-translate" aria-controls="panel-translate" aria-selected="true">
+          <svg class="icon" aria-hidden="true"><use href="#i-type"/></svg><span>Translate</span>
+        </button>
+        <button type="button" class="tab" role="tab" id="tab-learn" aria-controls="panel-learn" aria-selected="false" tabindex="-1">
+          <svg class="icon" aria-hidden="true"><use href="#i-target"/></svg><span>Learn</span>
+        </button>
+        <button type="button" class="tab" role="tab" id="tab-personalise" aria-controls="panel-personalise" aria-selected="false" tabindex="-1">
+          <svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg><span>Personalise</span>
+        </button>
+      </div>
+    </nav>
+
+    <div class="header-actions">
+      <button type="button" class="model-chip" id="model-indicator" aria-label="Model. Open settings">
+        <svg class="icon" aria-hidden="true"><use href="#i-cpu"/></svg>
+        <span class="model-chip__label" id="model-label">Model</span>
+      </button>
+      <div class="status-pill" id="status-pill" data-kind="wait">
+        <span class="status-pill__dot" aria-hidden="true"></span>
+        <span id="status-text">Connecting…</span>
+      </div>
+      <button type="button" class="icon-btn speech-toggle" id="speech-toggle" aria-pressed="true" aria-label="Automatic speech" title="Automatic speech">
+        <svg class="icon icon--on" aria-hidden="true"><use href="#i-speaker"/></svg>
+        <svg class="icon icon--off" aria-hidden="true"><use href="#i-speaker-off"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="settings-btn" aria-label="Settings" title="Settings">
+        <svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="banner" id="offline-banner" hidden>
+    <svg class="icon" aria-hidden="true"><use href="#i-wifi-off"/></svg>
+    <p class="banner__text">
+      <strong>Can't reach the SignSpeak server.</strong>
+      Start it with <code>python app.py</code>, then this page reconnects by itself.
+      <span class="banner__retry" id="offline-text"></span>
+    </p>
+    <button type="button" class="btn btn--sm" id="offline-retry">Retry now</button>
+  </div>
+
+  <main id="main" tabindex="-1">
+    <noscript><p class="callout callout--error">SignSpeak needs JavaScript to run.</p></noscript>
+
+    <!-- ============================== TRANSLATE ============================== -->
+    <section class="panel" id="panel-translate" role="tabpanel" aria-labelledby="tab-translate" tabindex="-1">
+      <h1 class="sr-only">Translate signs to text</h1>
+      <div class="workspace workspace--translate">
+        <div class="stage-slot" id="translate-stage-slot">
+          <!-- The one live camera stage. JavaScript moves it into whichever tab needs it. -->
+          <div class="stage is-mirrored" id="stage" role="region" aria-label="Live camera">
+            <video class="stage__video" id="video" autoplay muted playsinline disablepictureinpicture></video>
+            <canvas class="stage__overlay" id="overlay" aria-hidden="true"></canvas>
+            <div class="stage__placeholder" id="stage-placeholder">
+              <span class="spinner" aria-hidden="true"></span><span>Starting camera…</span>
+            </div>
+            <div class="stage__badge" id="stage-badge" hidden></div>
+            <div class="stage__hint" id="stage-hint" hidden></div>
+            <div class="stage__countdown" id="stage-countdown" hidden></div>
+            <div class="stage__status" id="stage-status" hidden>
+              <span class="spinner spinner--sm" aria-hidden="true"></span><span id="stage-status-text">Connecting…</span>
+            </div>
+            <div class="stage__error" id="camera-error" role="alert" hidden>
+              <svg class="stage__error-icon" aria-hidden="true"><use href="#i-camera-off"/></svg>
+              <h2 id="camera-error-title">Camera unavailable</h2>
+              <p id="camera-error-text"></p>
+              <button type="button" class="btn btn--primary" id="camera-retry">
+                <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>Retry
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="side" aria-label="Recognition">
+          <section class="card letter-card" id="tr-card" data-state="none" aria-labelledby="tr-card-title">
+            <div class="letter-card__grid">
+              <div class="letter-card__main">
+                <h2 class="eyebrow" id="tr-card-title">Current letter</h2>
+                <div class="glyph-wrap">
+                  <svg class="glyph-icon" aria-hidden="true"><use href="#i-hand"/></svg>
+                  <span class="glyph" id="tr-glyph" aria-hidden="true"></span>
+                </div>
+                <p class="letter-caption" id="tr-caption">Show your hands</p>
+              </div>
+              <figure class="ref-photo" id="tr-ref-figure" data-empty="true">
+                <img id="tr-ref-img" alt="" width="331" height="253" decoding="async">
+                <span class="ref-photo__empty">The reference photo of the letter the model sees appears here</span>
+                <figcaption id="tr-ref-label">Reference</figcaption>
+              </figure>
+              <div class="meters">
+                <div class="meter-row">
+                  <span class="meter-row__label">Confidence</span>
+                  <span class="meter meter--conf"><span class="meter__fill" id="tr-conf-bar"></span></span>
+                  <span class="meter-row__value" id="tr-conf-val">0%</span>
+                </div>
+                <div class="meter-row">
+                  <span class="meter-row__label">Hold to type</span>
+                  <span class="meter meter--hold"><span class="meter__fill" id="tr-hold-bar"></span></span>
+                  <span class="meter-row__value" id="tr-hold-val">0%</span>
+                </div>
+                <p class="release-hint" id="tr-release-hint" hidden>
+                  <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>Typed. Relax your hands to repeat
+                </p>
+              </div>
+              <div class="top3">
+                <h3 class="mini-heading">Top guesses</h3>
+                <ol class="top3__list" id="tr-top"></ol>
+              </div>
+            </div>
+          </section>
+
+          <div class="tip" id="tr-tips" role="note">
+            <svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg>
+            <p id="tr-tips-text"><strong>Not recognised?</strong> Keep <em>both hands</em> inside the green box at chest height, and sign the <em>Indian</em> (ISL) alphabet, not ASL.</p>
+            <button type="button" class="icon-btn icon-btn--sm" id="tr-tips-dismiss" aria-label="Dismiss tips">
+              <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      <section class="card composer" aria-labelledby="composer-title">
+        <h2 class="sr-only" id="composer-title">Your text</h2>
+        <div class="composer__text" id="text-output"><span id="text-content"></span><span class="caret" aria-hidden="true"></span><span class="composer__placeholder" id="text-placeholder">Hold a sign steady to type a letter…</span></div>
+        <div class="composer__actions">
+          <button type="button" class="btn btn--primary" id="btn-speak">
+            <svg class="icon" aria-hidden="true"><use href="#i-speaker"/></svg>Speak<kbd>Enter</kbd>
+          </button>
+          <button type="button" class="btn" id="btn-space">
+            <svg class="icon" aria-hidden="true"><use href="#i-space"/></svg>Space<kbd>Space</kbd>
+          </button>
+          <button type="button" class="btn" id="btn-delete">
+            <svg class="icon" aria-hidden="true"><use href="#i-backspace"/></svg>Delete<kbd aria-label="Backspace">⌫</kbd>
+          </button>
+          <button type="button" class="btn" id="btn-clear">
+            <svg class="icon" aria-hidden="true"><use href="#i-eraser"/></svg>Clear<kbd>Esc</kbd>
+          </button>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn--ghost" id="btn-copy">
+            <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>Copy
+          </button>
+        </div>
+      </section>
+
+      <section class="card history" aria-labelledby="history-title">
+        <div class="card__header">
+          <h2 id="history-title">History <span class="count" id="history-count"></span></h2>
+          <button type="button" class="btn btn--ghost btn--sm" id="history-clear">
+            <svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>Clear history
+          </button>
+        </div>
+        <p class="empty" id="history-empty">Sentences you speak are saved here. Press <kbd>Enter</kbd> or <strong>Speak</strong> to add one.</p>
+        <ul class="history__list" id="history-list"></ul>
+      </section>
+    </section>
+
+    <!-- ================================ LEARN ================================ -->
+    <section class="panel" id="panel-learn" role="tabpanel" aria-labelledby="tab-learn" tabindex="-1" hidden>
+      <h1 class="sr-only">Learn the ISL alphabet</h1>
+
+      <form class="card learn-setup" id="learn-setup" novalidate>
+        <div class="card__header">
+          <div>
+            <h2>Practise fingerspelling</h2>
+            <p class="muted">SignSpeak shows a letter. Hold its sign until the ring fills, then the next letter appears.</p>
+          </div>
+        </div>
+        <div class="learn-setup__grid">
+          <fieldset class="field">
+            <legend class="field__label">Letters to practise</legend>
+            <div class="segmented">
+              <label><input type="radio" name="learn-scope" value="all" checked><span>All 26</span></label>
+              <label><input type="radio" name="learn-scope" value="custom"><span>Choose letters</span></label>
+              <label><input type="radio" name="learn-scope" value="weak"><span>My weak letters</span></label>
+            </div>
+            <div class="scope-detail" id="learn-custom-wrap" hidden>
+              <div class="letter-toggles" id="learn-custom-grid" role="group" aria-label="Letters to practise"></div>
+              <div class="row">
+                <span class="muted small" id="learn-custom-count">0 selected</span>
+                <span class="spacer"></span>
+                <button type="button" class="btn btn--ghost btn--sm" id="learn-custom-all">Select all</button>
+                <button type="button" class="btn btn--ghost btn--sm" id="learn-custom-none">Clear</button>
+              </div>
+            </div>
+            <div class="scope-detail" id="learn-weak-wrap" hidden>
+              <div class="chips" id="learn-weak-list"></div>
+              <p class="muted small" id="learn-weak-note"></p>
+            </div>
+            <ol class="howto">
+              <li>A letter appears with the reference photo of its sign.</li>
+              <li>Sign it in front of the camera with both hands in the green box, and hold it until the ring fills.</li>
+              <li>Stuck? Skip it. Your accuracy and best time for each letter are saved in this browser.</li>
+            </ol>
+          </fieldset>
+
+          <div class="learn-setup__side">
+            <fieldset class="field">
+              <legend class="field__label">Order</legend>
+              <div class="segmented">
+                <label><input type="radio" name="learn-order" value="random" checked><span>Random</span></label>
+                <label><input type="radio" name="learn-order" value="sequential"><span>A → Z</span></label>
+              </div>
+            </fieldset>
+            <div class="field">
+              <div class="slider-field__top">
+                <label class="field__label" for="learn-hold">Hold time</label>
+                <output id="learn-hold-val" for="learn-hold">0.8 s</output>
+              </div>
+              <input type="range" id="learn-hold" min="0.3" max="3" step="0.1" value="0.8">
+              <p class="hint">How long you hold the correct sign for it to count.</p>
+            </div>
+            <button type="submit" class="btn btn--primary btn--lg" id="learn-start">
+              <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>Start practice
+            </button>
+            <p class="muted small" id="learn-start-note" aria-live="polite"></p>
+          </div>
+        </div>
+      </form>
+
+      <div class="workspace workspace--wide" id="learn-practice" hidden>
+        <div class="stage-slot" id="learn-stage-slot"></div>
+        <aside class="side" aria-label="Practice">
+          <section class="card target-card" id="learn-target-card" aria-labelledby="learn-target-title">
+            <div class="target-card__head">
+              <h2 class="eyebrow" id="learn-target-title">Sign this letter</h2>
+              <span class="streak" id="learn-streak" title="Streak: letters in a row without skipping">
+                <svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>
+                <span class="sr-only">Streak</span>
+                <span id="learn-streak-val">0</span>
+              </span>
+            </div>
+            <div class="target-card__body">
+              <div class="target-ring">
+                <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+                  <circle class="ring__track" cx="60" cy="60" r="54"/>
+                  <circle class="ring__fill" id="learn-ring" cx="60" cy="60" r="54"/>
+                </svg>
+                <span class="target-letter" id="learn-target">…</span>
+                <span class="target-success" id="learn-success" aria-hidden="true">
+                  <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+                </span>
+              </div>
+              <figure class="ref-photo ref-photo--target" id="learn-target-figure" data-empty="true">
+                <img id="learn-target-img" alt="" width="331" height="253" decoding="async">
+                <span class="ref-photo__empty">Reference photo</span>
+                <figcaption>Reference sign</figcaption>
+              </figure>
+            </div>
+            <div class="sees" id="learn-sees" data-state="none">
+              <span class="sees__dot" aria-hidden="true"></span>
+              <span class="sees__label">Model sees</span>
+              <strong class="sees__value" id="learn-sees-text">No hands</strong>
+            </div>
+            <p class="muted small" id="learn-hold-hint">Hold the sign for 0.8 s.</p>
+            <p class="muted small" id="learn-session-letters"></p>
+            <div class="actions">
+              <button type="button" class="btn" id="learn-skip">
+                <svg class="icon" aria-hidden="true"><use href="#i-skip"/></svg>Skip
+              </button>
+              <button type="button" class="btn btn--ghost" id="learn-stop">
+                <svg class="icon" aria-hidden="true"><use href="#i-stop"/></svg>Stop
+              </button>
+            </div>
+            <p class="sr-only" id="learn-announce" aria-live="polite"></p>
+          </section>
+        </aside>
+      </div>
+
+      <div class="learn-bottom">
+        <section class="card" aria-labelledby="chart-title">
+          <div class="card__header">
+            <div>
+              <h2 id="chart-title">Alphabet chart</h2>
+              <p class="muted">The reference sign for every letter. Click one to practise just that letter.</p>
+            </div>
+          </div>
+          <div class="chart" id="learn-chart"></div>
+        </section>
+        <section class="card stats-card" aria-labelledby="stats-title">
+          <div class="card__header">
+            <div>
+              <h2 id="stats-title">Your progress</h2>
+              <p class="muted small">Saved in this browser across sessions.</p>
+            </div>
+            <button type="button" class="btn btn--ghost btn--sm" id="learn-stats-reset">Reset</button>
+          </div>
+          <p class="empty" id="learn-stats-empty">Practise a few letters and your accuracy and best times appear here.</p>
+          <div class="table-scroll">
+            <table class="stats-table" id="learn-stats-table" hidden>
+              <thead>
+                <tr><th scope="col">Letter</th><th scope="col">Tries</th><th scope="col">Correct</th><th scope="col">Accuracy</th><th scope="col">Best</th></tr>
+              </thead>
+              <tbody id="learn-stats-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ============================= PERSONALISE ============================= -->
+    <section class="panel" id="panel-personalise" role="tabpanel" aria-labelledby="tab-personalise" tabindex="-1" hidden>
+      <h1 class="sr-only">Personalise the model to your signs</h1>
+
+      <section class="card intro" id="rec-intro" aria-labelledby="rec-intro-title">
+        <div class="intro__text">
+          <h2 id="rec-intro-title">Teach SignSpeak your signs</h2>
+          <p class="muted">The model learned from only four signers, so it may misread letters you form a little differently. Record a few short takes of each letter in front of your own camera, then fine-tune. It takes about 10 minutes and fixes most mix-ups.</p>
+          <ol class="steps">
+            <li><span class="steps__n">1</span><span><strong>Record</strong> 3 takes of every letter</span></li>
+            <li><span class="steps__n">2</span><span><strong>Fine-tune</strong> (about a minute)</span></li>
+            <li><span class="steps__n">3</span><span><strong>Use</strong> your personalised model</span></li>
+          </ol>
+        </div>
+        <div class="callout callout--warn" role="note">
+          <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
+          <div>
+            <strong>Record all 26 letters, not just the ones it gets wrong.</strong>
+            If you record only some letters, the model learns that pictures from your camera are one of
+            those letters, and the letters you didn't record start being misread as them.
+          </div>
+        </div>
+      </section>
+
+      <div class="workspace workspace--wide" id="rec-workspace" hidden>
+        <div class="stage-slot" id="rec-stage-slot"></div>
+        <aside class="side" aria-label="Recording">
+          <section class="card recorder" id="rec-active" aria-labelledby="rec-step">
+            <div class="recorder__head">
+              <h2 class="eyebrow" id="rec-step">Letter 1 of 26</h2>
+              <span class="pill" id="rec-take-label">Take 1 of 3</span>
+            </div>
+            <div class="recorder__body">
+              <span class="recorder__letter" id="rec-letter">A</span>
+              <figure class="ref-photo" id="rec-ref-figure" data-empty="true">
+                <img id="rec-ref-img" alt="" width="331" height="253" decoding="async">
+                <span class="ref-photo__empty">Reference photo</span>
+                <figcaption>Reference sign</figcaption>
+              </figure>
+            </div>
+            <p class="recorder__instruction" id="rec-instruction"></p>
+            <div class="take-dots" id="rec-dots" aria-hidden="true"></div>
+            <div class="meter-row">
+              <span class="meter-row__label">Images</span>
+              <span class="meter meter--rec"><span class="meter__fill" id="rec-bar"></span></span>
+              <span class="meter-row__value" id="rec-bar-label">0/20</span>
+            </div>
+            <p class="recorder__status" id="rec-status" aria-live="polite"></p>
+            <div class="actions actions--wrap">
+              <button type="button" class="btn btn--record btn--lg" id="rec-record">
+                <span class="rec-dot" aria-hidden="true"></span><span id="rec-record-label">Record take</span><kbd>Space</kbd>
+              </button>
+              <button type="button" class="btn" id="rec-delete">
+                <svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg>Delete last take
+              </button>
+              <button type="button" class="btn" id="rec-skip">
+                <svg class="icon" aria-hidden="true"><use href="#i-skip"/></svg>Skip letter
+              </button>
+              <button type="button" class="btn btn--ghost" id="rec-stop">
+                <svg class="icon" aria-hidden="true"><use href="#i-stop"/></svg>Stop
+              </button>
+            </div>
+            <label class="check">
+              <input type="checkbox" id="rec-auto">
+              <span>Start the next take of the same letter automatically</span>
+            </label>
+          </section>
+        </aside>
+      </div>
+
+      <section class="card finished" id="rec-finished" aria-labelledby="rec-finished-title" hidden>
+        <span class="finished__icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <div class="finished__text">
+          <h2 id="rec-finished-title">Recording finished</h2>
+          <p class="muted" id="rec-finished-text"></p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn--primary" id="rec-finished-finetune">
+            <svg class="icon" aria-hidden="true"><use href="#i-wand"/></svg>Go to fine-tuning
+          </button>
+          <button type="button" class="btn" id="rec-finished-close">Back to letters</button>
+        </div>
+      </section>
+
+      <section class="card" id="rec-card" aria-labelledby="rec-card-title">
+        <div class="card__header">
+          <div>
+            <h2 id="rec-card-title">Your recordings</h2>
+            <p class="muted">Takes recorded per letter. Selected letters are recorded until they have enough takes.</p>
+          </div>
+          <div class="rec-controls">
+            <label class="num-field">
+              <span>Takes per letter</span>
+              <input type="number" id="rec-takes" min="1" max="10" step="1" value="3" inputmode="numeric">
+            </label>
+            <label class="num-field">
+              <span>Images per take</span>
+              <input type="number" id="rec-per-take" min="5" max="60" step="1" value="20" inputmode="numeric">
+            </label>
+          </div>
+        </div>
+        <p class="callout callout--info" id="rec-offline" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+          <span>Your recordings will appear when the SignSpeak server is reachable.</span>
+        </p>
+        <div class="rec-grid" id="rec-grid" role="group" aria-label="Letters to record"></div>
+        <div class="rec-footer">
+          <div class="row">
+            <span class="muted small">Select</span>
+            <button type="button" class="btn btn--ghost btn--sm" id="rec-select-missing">Letters needing takes</button>
+            <button type="button" class="btn btn--ghost btn--sm" id="rec-select-all">All</button>
+            <button type="button" class="btn btn--ghost btn--sm" id="rec-select-none">None</button>
+          </div>
+          <span class="spacer"></span>
+          <p class="muted small" id="rec-summary"></p>
+          <button type="button" class="btn btn--record btn--lg" id="rec-start">
+            <svg class="icon" aria-hidden="true"><use href="#i-record"/></svg>Start recording
+          </button>
+        </div>
+      </section>
+
+      <section class="card finetune" id="ft-card" aria-labelledby="ft-title">
+        <div class="card__header">
+          <div>
+            <h2 id="ft-title">Fine-tune my model</h2>
+            <p class="muted">Retrains the model's last layer on your recordings, mixed with dataset images. About a minute on a laptop. The original model is never changed.</p>
+          </div>
+          <button type="button" class="btn btn--primary btn--lg" id="ft-start">
+            <svg class="icon" aria-hidden="true"><use href="#i-wand"/></svg><span id="ft-start-label">Fine-tune my model</span>
+          </button>
+        </div>
+
+        <div class="callout callout--warn" id="ft-dataset-warning" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
+          <div>
+            <strong>The RealSign dataset is needed for fine-tuning.</strong>
+            Fine-tuning mixes dataset images in with your recordings, but <code>data/RealSign</code> is missing.
+            Follow the <em>Dataset</em> section of <code>README.md</code> in the project folder to download it
+            (<a href="https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset" target="_blank" rel="noopener noreferrer">dataset page<svg class="icon icon--inline" aria-hidden="true"><use href="#i-external"/></svg></a>), then
+            <button type="button" class="link-btn" id="ft-recheck">check again</button>.
+          </div>
+        </div>
+        <div class="callout callout--warn" id="ft-missing-warning" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
+          <div>
+            <strong>Not recorded yet:</strong> <span class="letters" id="ft-missing-letters"></span>.
+            Letters you don't record can be "stolen" by the ones you did, so record all 26 for the best results.
+          </div>
+        </div>
+        <div class="callout callout--info" id="ft-single-warning" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+          <div>
+            <strong>Only one take:</strong> <span class="letters" id="ft-single-letters"></span>.
+            A letter needs at least 2 takes so one can be held out to measure accuracy.
+          </div>
+        </div>
+        <p class="muted" id="ft-norec-note" hidden>Record some letters first. Fine-tuning needs your recordings.</p>
+        <div class="callout callout--error" id="ft-error" role="alert" hidden></div>
+
+        <div class="ft-running" id="ft-running" hidden>
+          <div class="ft-running__head">
+            <span class="spinner" aria-hidden="true"></span>
+            <strong>Fine-tuning…</strong>
+            <span class="muted" id="ft-elapsed">0:00</span>
+          </div>
+          <pre class="log" id="ft-log" aria-label="Fine-tuning output"></pre>
+        </div>
+
+        <div class="ft-result" id="ft-result" hidden>
+          <div class="ft-result__head">
+            <div>
+              <h3>Results</h3>
+              <p class="muted small" id="ft-run-name"></p>
+            </div>
+            <button type="button" class="btn btn--primary" id="ft-use">
+              <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span id="ft-use-label">Use this model</span>
+            </button>
+          </div>
+          <div class="kpis">
+            <div class="kpi">
+              <span class="kpi__label">Your held-out take</span>
+              <span class="kpi__value">
+                <span class="kpi__before" id="ft-heldout-before">–</span>
+                <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+                <span id="ft-heldout-after">–</span>
+              </span>
+              <span class="kpi__delta" id="ft-heldout-delta"></span>
+            </div>
+            <div class="kpi">
+              <span class="kpi__label">Dataset test images</span>
+              <span class="kpi__value">
+                <span class="kpi__before" id="ft-dataset-before">–</span>
+                <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+                <span id="ft-dataset-after">–</span>
+              </span>
+              <span class="kpi__delta" id="ft-dataset-delta"></span>
+            </div>
+          </div>
+          <p class="muted small" id="ft-heldout-none" hidden>No held-out take to measure yet. Letters need at least 2 takes so the last one can be held out.</p>
+          <p class="callout callout--warn" id="ft-result-missing" hidden></p>
+          <div class="table-scroll table-scroll--x" id="ft-letters-wrap">
+            <table class="ft-table" id="ft-letters-table">
+              <caption class="sr-only">Per-letter accuracy on your held-out take, before and after fine-tuning</caption>
+            </table>
+          </div>
+        </div>
+
+        <div class="ft-failed" id="ft-failed" hidden>
+          <p class="callout callout--error">
+            <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
+            <span><strong>Fine-tuning failed.</strong> The output is below.</span>
+          </p>
+          <pre class="log log--full" id="ft-failed-log" aria-label="Fine-tuning output"></pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- ============================== SETTINGS ============================== -->
+  <dialog class="drawer" id="settings-dialog" aria-labelledby="settings-title">
+    <div class="drawer__inner">
+      <header class="drawer__header">
+        <h2 id="settings-title">Settings</h2>
+        <button type="button" class="icon-btn" id="settings-close" aria-label="Close settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>
+        </button>
+      </header>
+      <div class="drawer__body">
+        <section class="set-section" id="set-models-section" aria-labelledby="set-model-title">
+          <h3 class="set-section__title" id="set-model-title">Model</h3>
+          <div class="model-list" id="set-models" role="radiogroup" aria-labelledby="set-model-title"></div>
+          <p class="hint" id="set-models-empty">The model list appears when the server is reachable.</p>
+        </section>
+
+        <section class="set-section" aria-labelledby="set-rec-title">
+          <div class="set-section__head">
+            <h3 class="set-section__title" id="set-rec-title">Recognition</h3>
+            <button type="button" class="btn btn--ghost btn--sm" id="set-recognition-reset">Defaults</button>
+          </div>
+          <div class="slider-field">
+            <div class="slider-field__top"><label for="set-threshold">Confidence threshold</label><output id="set-threshold-val" for="set-threshold"></output></div>
+            <input type="range" id="set-threshold" min="0" max="1" step="0.01">
+            <p class="hint">A letter only counts when the model is at least this sure.</p>
+          </div>
+          <div class="slider-field">
+            <div class="slider-field__top"><label for="set-smoothing">Smoothing</label><output id="set-smoothing-val" for="set-smoothing"></output></div>
+            <input type="range" id="set-smoothing" min="1" max="30" step="1">
+            <p class="hint">Frames averaged. Higher is steadier but reacts more slowly.</p>
+          </div>
+          <div class="slider-field">
+            <div class="slider-field__top"><label for="set-hold">Hold to type</label><output id="set-hold-val" for="set-hold"></output></div>
+            <input type="range" id="set-hold" min="0" max="5" step="0.1">
+            <p class="hint">How long a sign must be held before it is typed.</p>
+          </div>
+          <div class="slider-field">
+            <div class="slider-field__top"><label for="set-release">Release before repeating</label><output id="set-release-val" for="set-release"></output></div>
+            <input type="range" id="set-release" min="0" max="3" step="0.05">
+            <p class="hint">How long to relax before the same letter can be typed again.</p>
+          </div>
+          <div class="slider-field">
+            <div class="slider-field__top"><label for="set-auto_space">Auto space</label><output id="set-auto_space-val" for="set-auto_space"></output></div>
+            <input type="range" id="set-auto_space" min="0" max="10" step="0.5">
+            <p class="hint">Seconds without hands before a space finishes the word. 0 turns it off.</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="set-flip">
+            <span class="switch__track" aria-hidden="true"></span>
+            <span class="switch__text">Mirror-average<small>Also classify the mirror image, so left- and right-handed signing work equally well. Slightly slower.</small></span>
+          </label>
+        </section>
+
+        <section class="set-section" aria-labelledby="set-view-title">
+          <h3 class="set-section__title" id="set-view-title">View</h3>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="set-mirror">
+            <span class="switch__track" aria-hidden="true"></span>
+            <span class="switch__text">Mirror view<small>Show the camera like a mirror (recommended).</small></span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="set-landmarks">
+            <span class="switch__track" aria-hidden="true"></span>
+            <span class="switch__text">Show hand landmarks<small>Draw the 21 tracked points of each hand.</small></span>
+          </label>
+          <fieldset class="field">
+            <legend class="field__label">Theme</legend>
+            <div class="segmented">
+              <label><input type="radio" name="set-theme" value="system"><span>System</span></label>
+              <label><input type="radio" name="set-theme" value="dark"><span>Dark</span></label>
+              <label><input type="radio" name="set-theme" value="light"><span>Light</span></label>
+            </div>
+          </fieldset>
+        </section>
+
+        <section class="set-section" aria-labelledby="set-speech-title">
+          <h3 class="set-section__title" id="set-speech-title">Speech</h3>
+          <p class="callout callout--info" id="set-speech-unsupported" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+            <span>This browser can't speak. Try a recent Chrome, Edge or Firefox.</span>
+          </p>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="set-speech-enabled">
+            <span class="switch__track" aria-hidden="true"></span>
+            <span class="switch__text">Automatic speech<small>Speak while you sign. The Speak button always works.</small></span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="set-speech-words">
+            <span class="switch__track" aria-hidden="true"></span>
+            <span class="switch__text">Speak finished words</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="set-speech-letters">
+            <span class="switch__track" aria-hidden="true"></span>
+            <span class="switch__text">Speak each letter as it is typed</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="set-speech-correct">
+            <span class="switch__track" aria-hidden="true"></span>
+            <span class="switch__text">Say "correct" in Learn</span>
+          </label>
+          <div class="field">
+            <label class="field__label" for="set-voice">Voice</label>
+            <select class="select" id="set-voice"><option value="">System default</option></select>
+          </div>
+          <div class="slider-field">
+            <div class="slider-field__top"><label for="set-rate">Speaking rate</label><output id="set-rate-val" for="set-rate"></output></div>
+            <input type="range" id="set-rate" min="0.5" max="2" step="0.1">
+          </div>
+          <div>
+            <button type="button" class="btn" id="set-test-voice">
+              <svg class="icon" aria-hidden="true"><use href="#i-speaker"/></svg>Test voice
+            </button>
+          </div>
+        </section>
+
+        <section class="set-section set-section--last">
+          <button type="button" class="btn btn--danger" id="set-reset">
+            <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>Reset settings to defaults
+          </button>
+          <p class="hint">Resets recognition, view and speech settings. Your model choice, history, practice stats and recordings are kept.</p>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Confirmation dialog -->
+  <dialog class="modal" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+    <div class="modal__inner">
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p class="muted" id="confirm-body"></p>
+      <div class="modal__actions">
+        <button type="button" class="btn" id="confirm-cancel">Cancel</button>
+        <button type="button" class="btn btn--primary" id="confirm-ok">OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div class="sr-only" id="sr-status" aria-live="polite"></div>
+  <div id="stage-park" hidden></div>
+</body>
+</html>
