@@ -503,11 +503,17 @@ export function createPersonaliseView(ctx) {
     };
   }
 
+  /** Fine-tuning needs the bundled dataset features or the dataset (older servers only report the latter). */
+  function finetuneDataMissing(s) {
+    if (!s) return false;
+    return 'finetune_available' in s ? s.finetune_available === false : s.dataset_available === false;
+  }
+
   function renderFinetunePrecheck() {
     const s = store.server;
     const sets = letterSets();
     const running = ft && ft.state === 'running';
-    const datasetMissing = !!s && s.dataset_available === false;
+    const datasetMissing = finetuneDataMissing(s);
     els.ftDataset.hidden = !datasetMissing;
     els.ftNoRec.hidden = !sets || sets.recorded.length > 0;
     els.ftMissing.hidden = !sets || !sets.recorded.length || !sets.missing.length;
@@ -679,7 +685,7 @@ export function createPersonaliseView(ctx) {
         showFtError("Can't reach the SignSpeak server.");
         return;
       }
-      if (s.dataset_available === false) {
+      if (finetuneDataMissing(s)) {
         renderFinetunePrecheck();
         els.ftDataset.scrollIntoView({ block: 'nearest' });
         return;
@@ -724,8 +730,8 @@ export function createPersonaliseView(ctx) {
   els.ftStart.addEventListener('click', startFinetune);
   els.ftRecheck.addEventListener('click', async () => {
     const s = await refreshServerState();
-    if (s && s.dataset_available) toast('Dataset found. You can fine-tune now.', { type: 'success' });
-    else if (s) toast('The dataset is still missing.', { type: 'error' });
+    if (s && !finetuneDataMissing(s)) toast('Fine-tuning data found. You can fine-tune now.', { type: 'success' });
+    else if (s) toast('The fine-tuning data is still missing.', { type: 'error' });
   });
   els.ftUse.addEventListener('click', () => {
     const id = ft && ft.model_id;

@@ -509,9 +509,11 @@
         <div class="callout callout--warn" id="ft-dataset-warning" hidden>
           <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
           <div>
-            <strong>The RealSign dataset is needed for fine-tuning.</strong>
-            Fine-tuning mixes dataset images in with your recordings, but <code>data/RealSign</code> is missing.
-            Follow the <em>Dataset</em> section of <code>README.md</code> in the project folder to download it
+            <strong>Fine-tuning data is missing.</strong>
+            Fine-tuning mixes dataset images in with your recordings. It normally uses
+            <code>models/replay_features.npz</code>, which comes with the project, but that file is missing.
+            Get it back from the repository (<code>git checkout models/replay_features.npz</code>), or download
+            the full dataset by following the <em>Dataset</em> section of <code>README.md</code>
             (<a href="https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset" target="_blank" rel="noopener noreferrer">dataset page<svg class="icon icon--inline" aria-hidden="true"><use href="#i-external"/></svg></a>), then
             <button type="button" class="link-btn" id="ft-recheck">check again</button>.
           </div>

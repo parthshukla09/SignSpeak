@@ -259,6 +259,11 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(s["default_model"], "original")
         self.assertEqual(s["recordings"]["A"], {"takes": 0, "images": 0})
         self.assertFalse(s["dataset_available"])
+        self.assertFalse(s["finetune_available"])
+        (self.root / "models" / "replay_features.npz").write_bytes(b"x")  # the bundled features
+        _, s = self.http("GET", "/api/state")
+        self.assertTrue(s["finetune_available"])
+        self.assertFalse(s["dataset_available"])
         self.assertEqual(s["finetune"]["state"], "idle")
         self.assertEqual(s["config_limits"]["smoothing"], [1, 30])
 

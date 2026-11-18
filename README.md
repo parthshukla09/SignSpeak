@@ -95,13 +95,20 @@ Useful options (`python webcam.py --help` lists all of them):
 ## Teach it your signs (recommended)
 
 The model learned from four signers, so some of your letters may be misread, for example if you
-form D, N or T a little differently. Two scripts fix that in a few minutes:
+form D, N or T a little differently. Fixing that takes about 10 minutes and **needs nothing
+beyond this repository**: no dataset download and no GPU. The easiest way is the web app's
+**Personalise** tab (`python app.py`). From the command line:
 
 ```bash
 python collect.py --letters ALL --per-take 20   # about 8 minutes; skips letters already recorded
 python finetune.py                              # about a minute on a laptop; saves runs/finetune-<time>/
 python webcam.py --model runs/finetune-<time>/SignSpeak.keras --classes runs/finetune-<time>/class_names.json
 ```
+
+Fine-tuning mixes in features of about 2,600 dataset images, so letters stay calibrated, and
+checks about 780 more for regressions. Those features ship with the project in
+`models/replay_features.npz` (15 MB), computed from the RealSign dataset (CC0), so the 657 MB
+dataset is not needed. If you do download the dataset to `data/RealSign`, it is used instead.
 
 - **`collect.py`** shows the dataset's reference photo of each letter next to your camera. For each
   letter you record 3 short takes while moving your hands slightly. The images are exactly the
@@ -150,7 +157,9 @@ The model is trained on the **[RealSign Indian Sign Language Dataset](https://gi
 (CC0 1.0): about 26,000 images of fingerspelled ISL letters A–Z from four signers, already split
 into `Training` (700 per letter), `Validation` (100) and `Testing` (200).
 
-The dataset is not stored in this repository. You only need it for `evaluate.py` and `train.py`:
+The dataset is not stored in this repository. You only need it for `evaluate.py` and `train.py`;
+the app and personalisation work without it. To rebuild the bundled fine-tuning features after
+changing the base model, run `python finetune.py --export-bundle`. To download the dataset:
 
 ```bash
 mkdir data
@@ -236,6 +245,7 @@ signspeak/
   registry.py        the models the app can use (original + runs/)
   server.py          the web server (FastAPI + WebSocket)
 models/SignSpeak_finetuned.keras   trained model (Keras 3, 22 MB)
+models/replay_features.npz         dataset features used by fine-tuning (15 MB, no dataset needed)
 class_names.json     output index → letter
 tests/               unit tests
 ```

@@ -30,12 +30,15 @@ the video is shown mirrored, the browser draws at `x' = 1 - x`.
   "config_limits": {"threshold": [0, 1], "smoothing": [1, 30], "hold": [0, 5], "release": [0, 3], "auto_space": [0, 10]},
   "recordings": {"A": {"takes": 3, "images": 60}, "B": {"takes": 0, "images": 0}, "...": {}},
   "dataset_available": true,
+  "finetune_available": true,
   "finetune": { /* FinetuneStatus, see below */ }
 }
 ```
 `models` is ordered: the original first, then runs newest first. `kind` is `original`,
-`personalised` (made by finetune.py) or `trained` (made by train.py). `dataset_available` is
-false when `data/RealSign` is missing, and fine-tuning needs it.
+`personalised` (made by finetune.py) or `trained` (made by train.py). `dataset_available` says
+whether the full dataset is in `data/RealSign`. `finetune_available` says whether fine-tuning can
+run: it needs either `models/replay_features.npz`, which ships with the repository, or the dataset.
+Gate the fine-tune button on `finetune_available`.
 
 ### `POST /api/recordings/{letter}/delete-last`
 Deletes the highest-numbered take of `letter`. → `{"removed": 20, "recordings": {...}}`.

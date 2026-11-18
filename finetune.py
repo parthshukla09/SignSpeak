@@ -12,8 +12,15 @@ The last take of each letter is held out. The script prints accuracy on it befor
 fine-tuning, plus accuracy on a sample of the RealSign test images, to check that nothing else
 got worse. The result goes to runs/<name>/; models/ is never changed.
 
+No dataset download is needed: the features of the replay and test samples are bundled in
+models/replay_features.npz. They are used whenever data/RealSign is missing and the model's
+feature extractor matches the one they were computed with. (Fine-tuning only changes the last
+layer, so they also match models produced by this script.) If the RealSign dataset is in
+data/RealSign, it is used instead, which also allows other --replay-per-class values.
+
   python finetune.py
   python webcam.py --model runs/<name>/SignSpeak.keras --classes runs/<name>/class_names.json
+  python finetune.py --export-bundle      # maintainers: rebuild the bundle from the dataset
 """
 from __future__ import annotations
 
@@ -33,6 +40,8 @@ from signspeak.model import (CLASS_NAMES_PATH, MODEL_PATH, PROJECT_ROOT, load_cl
                              load_keras_model, to_model_input)
 from signspeak.userdata import list_samples, split_by_take
 
+BUNDLE_PATH = PROJECT_ROOT / "models" / "replay_features.npz"
+
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -48,6 +57,11 @@ def parse_args(argv=None):
                    help="recompute the dataset features instead of reusing runs/cache/")
     p.add_argument("--cache-only", action="store_true",
                    help="only compute and cache the dataset features, then exit")
+    p.add_argument("--export-bundle", nargs="?", const=str(BUNDLE_PATH), metavar="PATH",
+                   help="compute the dataset features (needs data/RealSign) and write the bundle "
+                        f"that lets others fine-tune without the dataset (default {BUNDLE_PATH.name}), then exit")
+    p.add_argument("--bundle", default=str(BUNDLE_PATH),
+                   help="bundled dataset features used when data/RealSign is missing")
     p.add_argument("--user-weight", type=float, default=1.0,
                    help="how much your recordings of a letter count relative to the dataset's (default 1)")
     p.add_argument("--epochs", type=int, default=40)
@@ -123,6 +137,53 @@ def dataset_features(feats: FeatureCache, split_dir: Path, names: list[str], per
     return f, f_flip, y
 
 
+def extractor_fingerprint(model) -> str:
+    """Hash of every weight before the final Dense layer, i.e. of what produces the features.
+    Equal for the original model and for every model fine-tuned from it by this script."""
+    h = hashlib.sha256()
+    for layer in model.layers[:-1]:
+        for w in layer.get_weights():
+            w = np.ascontiguousarray(w)
+            h.update(str((w.shape, w.dtype.str)).encode())
+            h.update(w.tobytes())
+    return h.hexdigest()
+
+
+def save_bundle(path: Path, fingerprint: str, names: list[str], replay, test,
+                replay_per_class: int, test_per_class: int) -> None:
+    """Store replay/test features as float16 (about 16 MB) with what they were computed from."""
+    (fr, fr_flip, yr), (ft, ft_flip, yt) = replay, test
+    meta = {"fingerprint": fingerprint, "classes": names, "replay_per_class": replay_per_class,
+            "test_per_class": test_per_class, "source": "RealSign-Indian-Sign-Language-Dataset (CC0)",
+            "created": time.strftime("%Y-%m-%d")}
+    np.savez_compressed(path, meta=np.array(json.dumps(meta)),
+                        replay_f=fr.astype(np.float16), replay_f_flip=fr_flip.astype(np.float16),
+                        replay_y=yr.astype(np.int16), test_f=ft.astype(np.float16),
+                        test_f_flip=ft_flip.astype(np.float16), test_y=yt.astype(np.int16))
+
+
+def load_bundle(path: Path, fingerprint: str, names: list[str], replay_per_class: int,
+                test_per_class: int):
+    """((fr, fr_flip, yr), (ft, ft_flip, yt)), or (None, reason) if the bundle can't be used."""
+    if not path.is_file():
+        return None, f"there is no bundled features file at {path}"
+    with np.load(path) as z:
+        meta = json.loads(str(z["meta"]))
+        if meta.get("fingerprint") != fingerprint:
+            return None, (f"{path.name} was computed with a different model (its feature layers differ "
+                          "from --base)")
+        if meta.get("classes") != names:
+            return None, f"{path.name} was computed for different classes"
+        if (meta.get("replay_per_class"), meta.get("test_per_class")) != (replay_per_class, test_per_class) \
+                and not (test_per_class == 0 and meta.get("replay_per_class") == replay_per_class):
+            return None, (f"{path.name} holds {meta.get('replay_per_class')} replay / "
+                          f"{meta.get('test_per_class')} test images per letter; use those values or the dataset")
+        f32 = lambda k: z[k].astype(np.float32)  # noqa: E731
+        replay = (f32("replay_f"), f32("replay_f_flip"), z["replay_y"].astype(int))
+        test = (f32("test_f"), f32("test_f_flip"), z["test_y"].astype(int))
+    return (replay, test), None
+
+
 def accuracy_report(probs_fn, f, f_flip, y, names, title) -> dict:
     """Flip-averaged accuracy (as the webcam app predicts), per letter, and top confusions."""
     if len(y) == 0:
@@ -143,7 +204,7 @@ def main(argv=None) -> int:
     names = load_class_names(args.classes)
     n = len(names)
     samples = list_samples(args.user_data, names)
-    if not samples and not args.cache_only:
+    if not samples and not (args.cache_only or args.export_bundle):
         sys.exit(f"No recordings found in {args.user_data}. Record some first: python collect.py")
     train_u, val_u = split_by_take(samples)
     takes = Counter((s.letter, s.take) for s in samples)
@@ -172,19 +233,38 @@ def main(argv=None) -> int:
     w0, b0 = dense.get_weights()
 
     t0 = time.perf_counter()
-    print("Computing features (the dataset's are cached after the first run)...", flush=True)
     feats = FeatureCache(tf, model)
     data = Path(args.dataset)
-    fr, fr_flip, yr = dataset_features(feats, data / "Training", names, args.replay_per_class,
-                                       Path(args.base), not args.no_cache)
-    if args.test_per_class:
-        ft, ft_flip, yt = dataset_features(feats, data / "Testing", names, args.test_per_class,
+    have_dataset = (data / "Training").is_dir() and (args.test_per_class == 0 or (data / "Testing").is_dir())
+    empty = (np.zeros((0, w0.shape[0]), np.float32), np.zeros((0, w0.shape[0]), np.float32), np.zeros(0, int))
+    if have_dataset:
+        print("Computing features (the dataset's are cached after the first run)...", flush=True)
+        fr, fr_flip, yr = dataset_features(feats, data / "Training", names, args.replay_per_class,
                                            Path(args.base), not args.no_cache)
+        ft, ft_flip, yt = (dataset_features(feats, data / "Testing", names, args.test_per_class,
+                                            Path(args.base), not args.no_cache)
+                           if args.test_per_class else empty)
+    elif args.export_bundle or args.cache_only:
+        sys.exit(f"--export-bundle / --cache-only need the RealSign dataset in {data}.")
     else:
-        ft = ft_flip = np.zeros((0, w0.shape[0]))
-        yt = np.zeros(0, dtype=int)
+        bundle, why = load_bundle(Path(args.bundle), extractor_fingerprint(model), names,
+                                  args.replay_per_class, args.test_per_class)
+        if bundle is None:
+            sys.exit(f"The RealSign dataset is not in {data}, and {why}.\n"
+                     "Download the dataset (see 'Dataset' in README.md) or use the default settings.")
+        (fr, fr_flip, yr), (ft, ft_flip, yt) = bundle
+        if not args.test_per_class:
+            ft, ft_flip, yt = empty
+        print(f"Using the dataset features bundled in {Path(args.bundle).name} (no dataset download "
+              "needed). Computing features of your recordings...", flush=True)
     if args.cache_only:
         print(f"Dataset features cached in {time.perf_counter() - t0:.0f}s.")
+        return 0
+    if args.export_bundle:
+        save_bundle(Path(args.export_bundle), extractor_fingerprint(model), names, (fr, fr_flip, yr),
+                    (ft, ft_flip, yt), args.replay_per_class, args.test_per_class)
+        size = Path(args.export_bundle).stat().st_size / 1e6
+        print(f"Wrote {args.export_bundle} ({size:.1f} MB) in {time.perf_counter() - t0:.0f}s.")
         return 0
     fu_tr, fu_tr_flip = feats([s.path for s in train_u])
     fu_va, fu_va_flip = feats([s.path for s in val_u]) if val_u else (np.zeros((0, w0.shape[0])),) * 2

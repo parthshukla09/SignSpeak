@@ -251,6 +251,11 @@ def create_app(root: Path = PROJECT_ROOT, port: int = 8000, model_cache: ModelCa
     def models() -> list[ModelInfo]:
         return list_models(root)
 
+    def finetune_data_available() -> bool:
+        """finetune.py needs either the dataset or the bundled dataset features."""
+        return ((root / "data" / "RealSign" / "Training").is_dir()
+                or (root / "models" / "replay_features.npz").is_file())
+
     # ------------------------------------------------------------------ HTTP
     @app.get("/")
     def index():
@@ -271,6 +276,7 @@ def create_app(root: Path = PROJECT_ROOT, port: int = 8000, model_cache: ModelCa
             "config_limits": {k: list(v) for k, v in EngineConfig.LIMITS.items()},
             "recordings": userdata.summary(root / "data" / "user", classes()),
             "dataset_available": (root / "data" / "RealSign" / "Training").is_dir(),
+            "finetune_available": finetune_data_available(),
             "finetune": job.status(),
         }
 
@@ -288,9 +294,10 @@ def create_app(root: Path = PROJECT_ROOT, port: int = 8000, model_cache: ModelCa
         rec = userdata.summary(root / "data" / "user", names)
         if not any(v["takes"] for v in rec.values()):
             raise HTTPException(400, "Nothing recorded yet. Record your signs first.")
-        if not (root / "data" / "RealSign" / "Training").is_dir():
-            raise HTTPException(400, "The RealSign dataset is needed for fine-tuning but data/RealSign "
-                                     "is missing. See 'Dataset' in README.md.")
+        if not finetune_data_available():
+            raise HTTPException(400, "Fine-tuning needs models/replay_features.npz (included in the "
+                                     "repository) or the RealSign dataset in data/RealSign, and neither "
+                                     "was found. See 'Dataset' in README.md.")
         try:
             job.start([c for c in names if rec[c]["takes"] == 0])
         except RuntimeError as exc:
