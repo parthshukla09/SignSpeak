@@ -115,6 +115,14 @@
     </p>
     <button type="button" class="btn btn--sm" id="offline-retry">Retry now</button>
   </div>
+  <div class="banner banner--speech" id="speech-banner" hidden>
+    <svg class="icon" aria-hidden="true"><use href="#i-speaker-off"/></svg>
+    <p class="banner__text" id="speech-banner-text"></p>
+    <button type="button" class="btn btn--sm btn--primary" id="speech-banner-enable">Enable speech</button>
+    <button type="button" class="icon-btn icon-btn--sm" id="speech-banner-close" aria-label="Dismiss" title="Dismiss">
+      <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>
+    </button>
+  </div>
 
   <main id="main" tabindex="-1">
     <noscript><p class="callout callout--error">SignSpeak needs JavaScript to run.</p></noscript>
@@ -708,6 +716,7 @@
               <svg class="icon" aria-hidden="true"><use href="#i-speaker"/></svg>Test voice
             </button>
           </div>
+          <p class="hint" id="set-speech-status" aria-live="polite"></p>
         </section>
 
         <section class="set-section set-section--last">

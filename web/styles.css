@@ -449,6 +449,9 @@ kbd {
 }
 .banner > .icon { color: var(--red-text); }
 .banner__text { flex: 1; }
+.banner--speech { background: var(--surface-2); background: color-mix(in srgb, var(--amber) 14%, var(--bg)); }
+.banner--speech > .icon { color: var(--amber-text); }
+.banner--speech .banner__text small { display: block; color: var(--text-2); margin-top: 2px; }
 .banner__retry { color: var(--text-2); font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------------------------ layout */

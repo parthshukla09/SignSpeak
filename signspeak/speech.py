@@ -55,6 +55,10 @@ class Speaker:
             self.available = True
         except Exception as exc:  # no voice installed, missing package, ...
             self.error = f"{type(exc).__name__}: {exc}"
+            if sys.platform.startswith("linux"):
+                self.error += " - install a speech engine: sudo apt install espeak-ng"
+            elif sys.platform == "darwin":
+                self.error += " - check that pyobjc is installed: pip install pyobjc"
             return
         finally:
             self._ready.set()

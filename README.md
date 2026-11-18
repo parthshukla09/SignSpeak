@@ -77,6 +77,22 @@ guesses.
   lighting, backgrounds or camera angles reduce accuracy.
 - The most reliable letters are C, H, I, O, E, Y, F and L. Z, S, V and W are often confused (see Accuracy).
 
+### If it doesn't speak
+
+- **Click the page once.** Chrome and Edge only let a page talk after you have clicked or pressed
+  a key on it. Until then every word is silently refused. The app shows a "Speech is waiting for a
+  click" banner in that case.
+- **No voice installed:** the app says so in a banner and in Settings › Speech.
+  - Windows: Settings › Time & language › Speech › Add voices.
+  - macOS: System Settings › Accessibility › Spoken Content.
+  - Linux: `sudo apt install speech-dispatcher espeak-ng`, then restart the browser.
+- **Only finished words are spoken.** A word is finished when you lower your hands for 2 s or
+  press Space. To hear every letter, turn on Settings › Speech › "Speak each letter". Settings ›
+  Speech › **Test voice** checks the sound.
+- Check the speaker icon in the header is on, and that the computer's sound is on and going to the
+  right output.
+- `webcam.py` speaks through Python instead. On Linux it needs `espeak-ng`, and on macOS `pyobjc`.
+
 Useful options (`python webcam.py --help` lists all of them):
 
 ```

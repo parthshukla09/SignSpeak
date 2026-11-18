@@ -295,16 +295,96 @@ function main() {
     const on = speech.supported && !!settings.speech.enabled;
     header.speech.setAttribute('aria-pressed', String(on));
     header.speech.disabled = !speech.supported;
+    const problem = speechProblem();
+    header.speech.classList.toggle('has-problem', !!problem);
     header.speech.title = !speech.supported
       ? "Speech isn't available in this browser"
-      : on ? 'Automatic speech is on' : 'Automatic speech is off';
+      : problem === 'blocked' ? 'Speech starts after you click the page'
+        : problem === 'no-voices' ? 'No text-to-speech voice is installed'
+          : on ? 'Automatic speech is on' : 'Automatic speech is off';
+  }
+
+  // ------------------------------------------------------------------ speech problems
+  // Chrome/Edge only let a page speak after the user has clicked or pressed a key on it, and some
+  // computers have no voices installed. Either way speech would fail silently, so say what to do.
+  const speechBanner = collect({
+    box: 'speech-banner', text: 'speech-banner-text', enable: 'speech-banner-enable', close: 'speech-banner-close',
+  });
+  const speechStatusLine = document.getElementById('set-speech-status');
+  let speechBannerDismissed = '';
+
+  function speechProblem() {
+    if (!speech.supported) return null; // the settings drawer explains this case
+    if (speech.status === 'no-voices') return 'no-voices';
+    if (speech.status === 'blocked' || speech.needsActivation()) return 'blocked';
+    if (speech.status === 'error') return 'error';
+    return null;
+  }
+
+  function renderSpeechProblem() {
+    const problem = speechProblem();
+    if (speechBanner) {
+      const show = !!problem && settings.speech.enabled && speechBannerDismissed !== problem;
+      speechBanner.box.hidden = !show;
+      speechBanner.enable.hidden = problem !== 'blocked';
+      if (problem === 'blocked') {
+        speechBanner.text.innerHTML = '<strong>Speech is waiting for a click.</strong> Your browser only lets a page '
+          + 'talk after you have clicked or pressed a key on it. Click anywhere, or press <em>Enable speech</em>.';
+      } else if (problem === 'no-voices') {
+        speechBanner.text.innerHTML = '<strong>No text-to-speech voice is installed, so SignSpeak can\'t speak.</strong>'
+          + '<small>Windows: Settings › Time &amp; language › Speech › Add voices. '
+          + 'macOS: System Settings › Accessibility › Spoken Content. '
+          + 'Linux: install speech-dispatcher and espeak-ng (e.g. <code>sudo apt install speech-dispatcher espeak-ng</code>) '
+          + 'and restart the browser. Then reload this page.</small>';
+      } else if (problem === 'error') {
+        speechBanner.text.innerHTML = `<strong>Speech didn't work</strong> (${escapeHtml(speech.lastError || 'unknown error')}).`
+          + '<small>Check that the sound is on and the right speaker is selected, or choose another voice in Settings. '
+          + 'Online voices (for example "Google …") need an internet connection.</small>';
+      }
+    }
+    if (speechStatusLine) {
+      const n = speech.voices.length;
+      speechStatusLine.textContent = !speech.supported ? ''
+        : problem === 'no-voices' ? 'No voices found on this computer.'
+          : problem === 'blocked' ? `${n} voice${n === 1 ? '' : 's'} available. Speech starts after your first click on the page.`
+            : problem === 'error' ? `Last attempt failed: ${speech.lastError}.`
+              : n ? `${n} voice${n === 1 ? '' : 's'} available.` : 'Looking for voices…';
+    }
+    renderSpeechToggle();
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // The first click or key press anywhere makes the page "activated", which lets it speak.
+  function onFirstGesture() {
+    document.removeEventListener('pointerdown', onFirstGesture, true);
+    document.removeEventListener('keydown', onFirstGesture, true);
+    speech.unlock();
+    setTimeout(renderSpeechProblem, 0);
+  }
+  document.addEventListener('pointerdown', onFirstGesture, true);
+  document.addEventListener('keydown', onFirstGesture, true);
+  speech.onStatus(renderSpeechProblem);
+  speech.onVoices(renderSpeechProblem);
+  if (speechBanner) {
+    speechBanner.enable.addEventListener('click', () => {
+      speech.unlock();
+      if (settings.speech.enabled) speech.speak('Speech is on.', { interrupt: true });
+      setTimeout(renderSpeechProblem, 0);
+    });
+    speechBanner.close.addEventListener('click', () => {
+      speechBannerDismissed = speechProblem() || '';
+      renderSpeechProblem();
+    });
   }
 
   header.speech.addEventListener('click', () => {
     settings.speech.enabled = !settings.speech.enabled;
     saveSettings();
     if (!settings.speech.enabled) speech.cancel();
-    renderSpeechToggle();
+    renderSpeechProblem();
     bus.emit('settings:changed');
     toast(settings.speech.enabled ? 'Automatic speech is on.' : 'Automatic speech is off.');
   });
@@ -440,7 +520,7 @@ function main() {
     frames.pump();
   });
   bus.on('settings:changed', () => {
-    renderSpeechToggle();
+    renderSpeechProblem();
     renderModelChip();
   });
 
@@ -460,7 +540,7 @@ function main() {
   // ------------------------------------------------------------------ start
   applyView();
   renderModelChip();
-  renderSpeechToggle();
+  renderSpeechProblem();
   renderStatus();
   setTab(window.location.hash.slice(1), { updateHash: false });
   camera.start();
